@@ -2,7 +2,7 @@
 
 <div align="center">
 
-  ![ModelCurl Logo](docs/logo.png)
+  <img src="docs/logo.png" alt="ModelCurl Logo" width="128" height="128">
 
   **A beautiful, cross-platform LLM endpoint testing utility with advanced performance metrics**
 
