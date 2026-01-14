@@ -9,36 +9,40 @@ import { PerformanceMetrics, ThinkingBlock } from '../types';
 import 'katex/dist/katex.min.css';
 
 /**
- * Preprocess markdown to convert bracket/parentheses-enclosed LaTeX to dollar-sign format
+ * Preprocess markdown to convert bracket/parentheses/mixed-delimiter LaTeX to dollar-sign format
  * Handles patterns like:
  * - [ \frac{a}{b} ] -> $ \frac{a}{b} $
  * - (u = \csc x) -> $u = \csc x$
+ * - $ \int ... ] -> $ \int ... $ (mixed delimiters)
  */
 function preprocessLatex(markdown: string): string {
-  // Pattern 1: Multi-line bracket-enclosed formulas (display math)
+  let processed = markdown;
+
+  // Step 1: Fix mixed delimiters first
+  // Pattern: $ ... ]  -> $ ... $
+  processed = processed.replace(/\$([^$\n]*?)\]/g, '$1$');
+
+  // Pattern: [ ... $  -> $ ... $
+  processed = processed.replace(/\[([^\]\n]*?)\$/g, '$$$1$');
+
+  // Pattern: $ ... )  -> $ ... $
+  processed = processed.replace(/\$([^$\n]*?)\)/g, '$1$');
+
+  // Pattern: ( ... $  -> $ ... $
+  processed = processed.replace(/\(([^)]*?)\$/g, '$$$1$');
+
+  // Step 2: Multi-line bracket-enclosed formulas (display math)
   // Matches: [ newline LaTeX content newline ]
   // Converts to: $$ LaTeX content $$
   const displayMathPattern = /\[\s*\n((?:[^\]]|\n(?!\]))*\\\[\w\*]+(?:\{[^}]*\})?(?:[^\]]|\n(?!\]))*?)\n\s*\]/g;
-
-  // Pattern 2: Single-line bracket-enclosed formulas (inline math)
-  // Matches: [ LaTeX with backslash commands ]
-  // Converts to: $ LaTeX $
-  const inlineBracketMathPattern = /\[((?:[^\]]*\\(?:[\w\*]+|[\{\}\(\)\[\]])\s*)[^\]]*)\]/g;
-
-  // Pattern 3: Parentheses-enclosed formulas (inline math)
-  // Matches: ( LaTeX with backslash commands ) but only when it starts with backslash
-  // More conservative since parentheses are common in text
-  // Converts to: $ LaTeX $
-  const inlineParenMathPattern = /\(([^)]*\\[\w\*]+[^)]*)\)/g;
-
-  let processed = markdown;
-
-  // First process display math (multi-line brackets)
   processed = processed.replace(displayMathPattern, (_match, content) => {
     return `$$${content}$$`;
   });
 
-  // Then process inline bracket math
+  // Step 3: Single-line bracket-enclosed formulas (inline math)
+  // Matches: [ LaTeX with backslash commands ]
+  // Converts to: $ LaTeX $
+  const inlineBracketMathPattern = /\[((?:[^\]]*\\(?:[\w\*]+|[\{\}\(\)\[\]])\s*)[^\]]*)\]/g;
   processed = processed.replace(inlineBracketMathPattern, (_match, content) => {
     // Only convert if it looks like LaTeX (contains backslash commands)
     if (content.includes('\\')) {
@@ -47,7 +51,11 @@ function preprocessLatex(markdown: string): string {
     return _match; // Return original if not LaTeX
   });
 
-  // Finally process parentheses math (more conservative)
+  // Step 4: Parentheses-enclosed formulas (inline math)
+  // Matches: ( LaTeX with backslash commands ) but only when it starts with backslash
+  // More conservative since parentheses are common in text
+  // Converts to: $ LaTeX $
+  const inlineParenMathPattern = /\(([^)]*\\[\w\*]+[^)]*)\)/g;
   processed = processed.replace(inlineParenMathPattern, (_match, content) => {
     // Only convert if it looks like a formula:
     // - Contains LaTeX commands (backslash + word/asterisk)
