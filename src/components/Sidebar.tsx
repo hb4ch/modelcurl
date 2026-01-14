@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, Globe, Copy } from 'lucide-react';
+import { Plus, Trash2, Globe, Copy, Pencil } from 'lucide-react';
 import { useEndpointStore } from '../stores/endpointStore';
 import { Endpoint } from '../types';
 import { Button } from './UI/Button';
@@ -37,6 +37,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const handleDuplicate = async (endpoint: Endpoint, e: React.MouseEvent) => {
     e.stopPropagation();
     await duplicateEndpoint(endpoint);
+  };
+
+  const handleEdit = (endpoint: Endpoint, e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEditEndpoint(endpoint);
   };
 
   return (
@@ -77,14 +82,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }`}
                 onClick={() => selectEndpoint(endpoint)}
               >
-                <button
-                  className="absolute inset-0 z-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEditEndpoint(endpoint);
-                  }}
-                  aria-label="Edit endpoint"
-                />
                 <div className="relative z-10 flex items-start justify-between">
                   <div className="flex-1 min-w-0 pointer-events-none">
                     <div className="font-medium text-sm truncate">
@@ -95,6 +92,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity relative z-20">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => handleEdit(endpoint, e)}
+                      title="Edit endpoint"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
