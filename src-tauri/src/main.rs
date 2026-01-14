@@ -17,7 +17,9 @@ fn main() {
             save_endpoint,
             delete_endpoint,
             get_request_history,
-            clear_history
+            clear_history,
+            fetch_models,
+            test_connection
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

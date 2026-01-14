@@ -1,4 +1,4 @@
-use crate::http::{send_llm_request, send_llm_request_streaming};
+use crate::http::{send_llm_request, send_llm_request_streaming, get_available_models, test_endpoint};
 use crate::types::*;
 use std::fs;
 use std::path::PathBuf;
@@ -105,6 +105,16 @@ pub fn clear_history() -> Result<(), String> {
         .map_err(|e| format!("Failed to clear history: {}", e))?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn fetch_models(endpoint: Endpoint) -> Result<Vec<String>, String> {
+    get_available_models(&endpoint).await
+}
+
+#[tauri::command]
+pub async fn test_connection(endpoint: Endpoint) -> Result<String, String> {
+    test_endpoint(&endpoint).await
 }
 
 fn get_config_dir() -> Result<PathBuf, String> {

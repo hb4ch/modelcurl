@@ -64,7 +64,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/modelcurl.git
+git clone https://github.com/hb4ch/modelcurl.git
 cd modelcurl
 
 # Install dependencies
@@ -85,12 +85,12 @@ Download the latest release for your platform:
 - Single executable with embedded UI
 - Works on Windows 10/11 (WebView2 required - included in Windows 11)
 - No external DLL dependencies
-- Download: [ModelCurl.exe](https://github.com/yourusername/modelcurl/releases)
+- Download: [ModelCurl.exe](https://github.com/hb4ch/modelcurl/releases)
 
 **macOS** (Apple Silicon)
 - Native Apple Silicon build
 - Drag-and-drop installation
-- Download: [ModelCurl.app](https://github.com/yourusername/modelcurl/releases)
+- Download: [ModelCurl.app](https://github.com/hb4ch/modelcurl/releases)
 
 **Linux** (deb/rpm) - Coming soon
 
@@ -400,9 +400,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Support
 
-- 📖 [Documentation](https://github.com/yourusername/modelcurl/wiki)
-- 🐛 [Issue Tracker](https://github.com/yourusername/modelcurl/issues)
-- 💬 [Discussions](https://github.com/yourusername/modelcurl/discussions)
+- 📖 [Documentation](https://github.com/hb4ch/modelcurl/wiki)
+- 🐛 [Issue Tracker](https://github.com/hb4ch/modelcurl/issues)
+- 💬 [Discussions](https://github.com/hb4ch/modelcurl/discussions)
 
 ---
 

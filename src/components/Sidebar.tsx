@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, Globe } from 'lucide-react';
+import { Plus, Trash2, Globe, Copy } from 'lucide-react';
 import { useEndpointStore } from '../stores/endpointStore';
 import { Endpoint } from '../types';
 import { Button } from './UI/Button';
@@ -14,7 +14,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNewEndpoint,
   onEditEndpoint,
 }) => {
-  const { endpoints, selectedEndpoint, loadEndpoints, selectEndpoint, deleteEndpoint } =
+  const { endpoints, selectedEndpoint, loadEndpoints, selectEndpoint, deleteEndpoint, duplicateEndpoint } =
     useEndpointStore();
 
   const [filter, setFilter] = useState('');
@@ -32,6 +32,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (confirm('Are you sure you want to delete this endpoint?')) {
       await deleteEndpoint(id);
     }
+  };
+
+  const handleDuplicate = async (endpoint: Endpoint, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await duplicateEndpoint(endpoint);
   };
 
   return (
@@ -89,14 +94,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {endpoint.model}
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity relative z-20"
-                    onClick={(e) => handleDelete(endpoint.id, e)}
-                  >
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity relative z-20">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => handleDuplicate(endpoint, e)}
+                      title="Duplicate endpoint"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => handleDelete(endpoint.id, e)}
+                      title="Delete endpoint"
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}

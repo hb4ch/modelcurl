@@ -1,4 +1,4 @@
-use crate::types::{PerformanceMetrics, TokenEvent};
+use crate::types::PerformanceMetrics;
 use std::time::{Duration, Instant};
 
 pub struct MetricsCollector {

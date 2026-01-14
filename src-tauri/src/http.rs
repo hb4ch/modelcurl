@@ -2,7 +2,7 @@ use crate::types::{Endpoint, LLMRequest, LLMResponse, UsageMetrics};
 use anyhow::Result;
 use reqwest::Client;
 use std::time::Instant;
-use futures_util::stream::StreamExt;
+use serde_json::Value;
 
 pub async fn send_llm_request(endpoint: &Endpoint, request: &LLMRequest) -> Result<LLMResponse, String> {
     let client = Client::new();
@@ -165,4 +165,95 @@ pub async fn send_llm_request_streaming(
     }
 
     Ok(full_content)
+}
+
+/// Get available models from the endpoint's /models API
+pub async fn get_available_models(endpoint: &Endpoint) -> Result<Vec<String>, String> {
+    let client = Client::new();
+
+    let mut req_builder = client
+        .get(format!("{}/models", endpoint.url))
+        .header("Content-Type", "application/json");
+
+    // Add API key if provided
+    if let Some(api_key) = &endpoint.api_key {
+        req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
+    }
+
+    // Add custom headers
+    for (key, value) in &endpoint.headers {
+        req_builder = req_builder.header(key, value);
+    }
+
+    let response = req_builder
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    let status = response.status();
+
+    if !status.is_success() {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(format!("Failed to fetch models with status {}: {}", status, error_text));
+    }
+
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    let parsed: Value = serde_json::from_str(&response_text)
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    // Parse models from OpenAI-compatible format
+    let models = parsed["data"]
+        .as_array()
+        .ok_or_else(|| "Invalid response format: 'data' field not found".to_string())?
+        .iter()
+        .filter_map(|model| model["id"].as_str().map(|s| s.to_string()))
+        .collect();
+
+    Ok(models)
+}
+
+/// Test endpoint validity by making a lightweight request
+pub async fn test_endpoint(endpoint: &Endpoint) -> Result<String, String> {
+    let client = Client::new();
+
+    // Try to fetch models as a lightweight test
+    let mut req_builder = client
+        .get(format!("{}/models", endpoint.url))
+        .header("Content-Type", "application/json");
+
+    // Add API key if provided
+    if let Some(api_key) = &endpoint.api_key {
+        req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
+    }
+
+    // Add custom headers
+    for (key, value) in &endpoint.headers {
+        req_builder = req_builder.header(key, value);
+    }
+
+    let start = Instant::now();
+    let response = req_builder
+        .send()
+        .await
+        .map_err(|e| format!("Connection failed: {}", e))?;
+
+    let elapsed = start.elapsed().as_millis();
+    let status = response.status();
+
+    if !status.is_success() {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(format!("Endpoint returned error {}: {}", status, error_text));
+    }
+
+    Ok(format!("Connection successful! Response time: {}ms", elapsed))
 }

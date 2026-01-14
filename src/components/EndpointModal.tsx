@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2, RefreshCw, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { Button } from './UI/Button';
 import { Input } from './UI/Input';
 import { Label } from './UI/Label';
 import { Endpoint } from '../types';
+import { invoke } from '@tauri-apps/api/tauri';
 
 interface EndpointModalProps {
   isOpen: boolean;
@@ -23,6 +24,10 @@ export const EndpointModal: React.FC<EndpointModalProps> = ({
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-3.5-turbo');
   const [headers, setHeaders] = useState<[string, string][]>([]);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
 
   useEffect(() => {
     if (endpoint) {
@@ -38,7 +43,61 @@ export const EndpointModal: React.FC<EndpointModalProps> = ({
       setModel('gpt-3.5-turbo');
       setHeaders([]);
     }
+    // Reset states
+    setAvailableModels([]);
+    setConnectionStatus({ type: null, message: '' });
   }, [endpoint, isOpen]);
+
+  const handleFetchModels = async () => {
+    if (!url) {
+      alert('Please enter a base URL first');
+      return;
+    }
+
+    setIsLoadingModels(true);
+    try {
+      const tempEndpoint: Endpoint = {
+        id: 'temp',
+        name: 'temp',
+        url: url.replace(/\/$/, ''),
+        apiKey: apiKey || undefined,
+        headers: headers.filter(([k]) => k.trim()),
+        model,
+      };
+      const models = await invoke<string[]>('fetch_models', { endpoint: tempEndpoint });
+      setAvailableModels(models);
+    } catch (error) {
+      alert(`Failed to fetch models: ${error}`);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    if (!url) {
+      alert('Please enter a base URL first');
+      return;
+    }
+
+    setIsTestingConnection(true);
+    setConnectionStatus({ type: null, message: '' });
+    try {
+      const tempEndpoint: Endpoint = {
+        id: 'temp',
+        name: 'temp',
+        url: url.replace(/\/$/, ''),
+        apiKey: apiKey || undefined,
+        headers: headers.filter(([k]) => k.trim()),
+        model,
+      };
+      const result = await invoke<string>('test_connection', { endpoint: tempEndpoint });
+      setConnectionStatus({ type: 'success', message: result });
+    } catch (error) {
+      setConnectionStatus({ type: 'error', message: String(error) });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
 
   const addHeader = () => {
     setHeaders([...headers, ['', '']]);
@@ -107,16 +166,46 @@ export const EndpointModal: React.FC<EndpointModalProps> = ({
             <Label htmlFor="url">
               Base URL <span className="text-destructive">*</span>
             </Label>
-            <Input
-              id="url"
-              placeholder="https://api.openai.com/v1"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              required
-            />
+            <div className="flex gap-2">
+              <Input
+                id="url"
+                placeholder="https://api.openai.com/v1"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                required
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="default"
+                onClick={handleTestConnection}
+                disabled={isTestingConnection || !url}
+                className="whitespace-nowrap"
+              >
+                {isTestingConnection ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  'Test Connection'
+                )}
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
               The base URL of your LLM API endpoint (e.g., https://api.openai.com/v1)
             </p>
+            {connectionStatus.type && (
+              <div className={`mt-2 text-sm flex items-center gap-2 ${connectionStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                {connectionStatus.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4" />
+                ) : (
+                  <XCircle className="w-4 h-4" />
+                )}
+                {connectionStatus.message}
+              </div>
+            )}
           </div>
 
           <div>
@@ -131,16 +220,59 @@ export const EndpointModal: React.FC<EndpointModalProps> = ({
           </div>
 
           <div>
-            <Label htmlFor="model">
-              Model <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="model"
-              placeholder="gpt-3.5-turbo"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              required
-            />
+            <div className="flex items-center justify-between mb-2">
+              <Label htmlFor="model">
+                Model <span className="text-destructive">*</span>
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleFetchModels}
+                disabled={isLoadingModels || !url}
+              >
+                {isLoadingModels ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-1" />
+                    Fetch Models
+                  </>
+                )}
+              </Button>
+            </div>
+            {availableModels.length > 0 ? (
+              <select
+                id="model"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                required
+                className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">Select a model...</option>
+                {availableModels.map((modelName) => (
+                  <option key={modelName} value={modelName}>
+                    {modelName}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                id="model"
+                placeholder="gpt-3.5-turbo"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                required
+              />
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              {availableModels.length > 0
+                ? `Found ${availableModels.length} available models`
+                : 'Click "Fetch Models" to load available models from the endpoint'}
+            </p>
           </div>
 
           <div>

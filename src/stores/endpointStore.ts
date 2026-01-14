@@ -8,6 +8,7 @@ interface EndpointStore {
   loadEndpoints: () => Promise<void>;
   saveEndpoint: (endpoint: Endpoint) => Promise<void>;
   deleteEndpoint: (id: string) => Promise<void>;
+  duplicateEndpoint: (endpoint: Endpoint) => Promise<void>;
   selectEndpoint: (endpoint: Endpoint | null) => void;
 }
 
@@ -46,6 +47,21 @@ export const useEndpointStore = create<EndpointStore>((set, get) => ({
       }
     } catch (error) {
       console.error('Failed to delete endpoint:', error);
+      throw error;
+    }
+  },
+
+  duplicateEndpoint: async (endpoint: Endpoint) => {
+    try {
+      const duplicatedEndpoint: Endpoint = {
+        ...endpoint,
+        id: `endpoint-${Date.now()}`,
+        name: `${endpoint.name} (copy)`,
+      };
+      await invoke('save_endpoint', { endpoint: duplicatedEndpoint });
+      await get().loadEndpoints();
+    } catch (error) {
+      console.error('Failed to duplicate endpoint:', error);
       throw error;
     }
   },
