@@ -8,6 +8,40 @@ import { Button } from './UI/Button';
 import { PerformanceMetrics, ThinkingBlock } from '../types';
 import 'katex/dist/katex.min.css';
 
+/**
+ * Preprocess markdown to convert bracket-enclosed LaTeX to dollar-sign format
+ * Handles patterns like [ \frac{a}{b} ] -> $ \frac{a}{b} $
+ */
+function preprocessLatex(markdown: string): string {
+  // Pattern 1: Multi-line bracket-enclosed formulas (display math)
+  // Matches: [ newline LaTeX content newline ]
+  // Converts to: $$ LaTeX content $$
+  const displayMathPattern = /\[\s*\n((?:[^\]]|\n(?!\]))*\\\[\w\*]+(?:\{[^}]*\})?(?:[^\]]|\n(?!\]))*?)\n\s*\]/g;
+
+  // Pattern 2: Single-line bracket-enclosed formulas (inline math)
+  // Matches: [ LaTeX with backslash commands ]
+  // Converts to: $ LaTeX $
+  const inlineMathPattern = /\[((?:[^\]]*\\(?:[\w\*]+|[\{\}\(\)\[\]])\s*)[^\]]*)\]/g;
+
+  let processed = markdown;
+
+  // First process display math (multi-line)
+  processed = processed.replace(displayMathPattern, (_match, content) => {
+    return `$$${content}$$`;
+  });
+
+  // Then process inline math (single-line)
+  processed = processed.replace(inlineMathPattern, (_match, content) => {
+    // Only convert if it looks like LaTeX (contains backslash commands)
+    if (content.includes('\\')) {
+      return `$${content}$`;
+    }
+    return _match; // Return original if not LaTeX
+  });
+
+  return processed;
+}
+
 interface ResponseDisplayProps {
   response: string;
   metrics: PerformanceMetrics | null;
@@ -134,8 +168,11 @@ export const ResponseDisplay: React.FC<ResponseDisplayProps> = ({
           {showReasoning && reasoningContent && (
             <div className="px-4 pb-4 max-h-96 overflow-y-auto">
               <div className="prose prose-sm dark:prose-invert max-w-none text-amber-900 dark:text-amber-100 bg-amber-100 dark:bg-amber-900/30 rounded-lg p-4">
-                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                  {reasoningContent}
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {preprocessLatex(reasoningContent)}
                 </ReactMarkdown>
               </div>
             </div>
@@ -153,8 +190,11 @@ export const ResponseDisplay: React.FC<ResponseDisplayProps> = ({
                       {block.summary}
                     </div>
                   )}
-                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                    {block.content}
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                  >
+                    {preprocessLatex(block.content)}
                   </ReactMarkdown>
                 </div>
               ))}
@@ -185,8 +225,11 @@ export const ResponseDisplay: React.FC<ResponseDisplayProps> = ({
 
         {response ? (
           <div className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-              {response}
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+            >
+              {preprocessLatex(response)}
             </ReactMarkdown>
           </div>
         ) : (
