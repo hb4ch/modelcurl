@@ -1,9 +1,12 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import { Copy, Check, Trash2, ChevronDown, ChevronUp, Brain } from 'lucide-react';
 import { Button } from './UI/Button';
 import { PerformanceMetrics, ThinkingBlock } from '../types';
+import 'katex/dist/katex.min.css';
 
 interface ResponseDisplayProps {
   response: string;
@@ -131,7 +134,7 @@ export const ResponseDisplay: React.FC<ResponseDisplayProps> = ({
           {showReasoning && reasoningContent && (
             <div className="px-4 pb-4 max-h-96 overflow-y-auto">
               <div className="prose prose-sm dark:prose-invert max-w-none text-amber-900 dark:text-amber-100 bg-amber-100 dark:bg-amber-900/30 rounded-lg p-4">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
                   {reasoningContent}
                 </ReactMarkdown>
               </div>
@@ -150,7 +153,7 @@ export const ResponseDisplay: React.FC<ResponseDisplayProps> = ({
                       {block.summary}
                     </div>
                   )}
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
                     {block.content}
                   </ReactMarkdown>
                 </div>
@@ -182,7 +185,7 @@ export const ResponseDisplay: React.FC<ResponseDisplayProps> = ({
 
         {response ? (
           <div className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
               {response}
             </ReactMarkdown>
           </div>
