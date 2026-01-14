@@ -59,3 +59,11 @@ coverage/
 # Misc
 *.log
 .cache/
+
+# Build artifacts
+dist-windows/
+dist-windows.zip
+*.zip
+
+# Claude Code
+.claude/
