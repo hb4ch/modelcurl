@@ -16,6 +16,12 @@
 
 ---
 
+## 📸 Screenshot
+
+![ModelCurl Screenshot](docs/screenshot.png)
+
+---
+
 ## ✨ Features
 
 ### 🎯 Core Functionality
