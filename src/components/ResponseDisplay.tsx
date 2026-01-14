@@ -9,8 +9,10 @@ import { PerformanceMetrics, ThinkingBlock } from '../types';
 import 'katex/dist/katex.min.css';
 
 /**
- * Preprocess markdown to convert bracket-enclosed LaTeX to dollar-sign format
- * Handles patterns like [ \frac{a}{b} ] -> $ \frac{a}{b} $
+ * Preprocess markdown to convert bracket/parentheses-enclosed LaTeX to dollar-sign format
+ * Handles patterns like:
+ * - [ \frac{a}{b} ] -> $ \frac{a}{b} $
+ * - (u = \csc x) -> $u = \csc x$
  */
 function preprocessLatex(markdown: string): string {
   // Pattern 1: Multi-line bracket-enclosed formulas (display math)
@@ -21,22 +23,42 @@ function preprocessLatex(markdown: string): string {
   // Pattern 2: Single-line bracket-enclosed formulas (inline math)
   // Matches: [ LaTeX with backslash commands ]
   // Converts to: $ LaTeX $
-  const inlineMathPattern = /\[((?:[^\]]*\\(?:[\w\*]+|[\{\}\(\)\[\]])\s*)[^\]]*)\]/g;
+  const inlineBracketMathPattern = /\[((?:[^\]]*\\(?:[\w\*]+|[\{\}\(\)\[\]])\s*)[^\]]*)\]/g;
+
+  // Pattern 3: Parentheses-enclosed formulas (inline math)
+  // Matches: ( LaTeX with backslash commands ) but only when it starts with backslash
+  // More conservative since parentheses are common in text
+  // Converts to: $ LaTeX $
+  const inlineParenMathPattern = /\(([^)]*\\[\w\*]+[^)]*)\)/g;
 
   let processed = markdown;
 
-  // First process display math (multi-line)
+  // First process display math (multi-line brackets)
   processed = processed.replace(displayMathPattern, (_match, content) => {
     return `$$${content}$$`;
   });
 
-  // Then process inline math (single-line)
-  processed = processed.replace(inlineMathPattern, (_match, content) => {
+  // Then process inline bracket math
+  processed = processed.replace(inlineBracketMathPattern, (_match, content) => {
     // Only convert if it looks like LaTeX (contains backslash commands)
     if (content.includes('\\')) {
       return `$${content}$`;
     }
     return _match; // Return original if not LaTeX
+  });
+
+  // Finally process parentheses math (more conservative)
+  processed = processed.replace(inlineParenMathPattern, (_match, content) => {
+    // Only convert if it looks like a formula:
+    // - Contains LaTeX commands (backslash + word/asterisk)
+    // - Contains common math operators (=, +, -, *, /, ^, etc.)
+    const hasLatex = /\\[\w\*]+/.test(content);
+    const hasMathOperator = /[=+\-*/^_]/.test(content);
+
+    if (hasLatex || (hasMathOperator && content.includes('\\'))) {
+      return `$${content}$`;
+    }
+    return _match; // Return original if not a formula
   });
 
   return processed;
