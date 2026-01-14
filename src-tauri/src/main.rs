@@ -4,6 +4,7 @@
 mod commands;
 mod http;
 mod metrics;
+mod provider;
 mod types;
 
 use commands::*;

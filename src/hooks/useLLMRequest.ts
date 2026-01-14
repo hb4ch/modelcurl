@@ -1,13 +1,16 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
-import { Endpoint, LLMRequest, LLMResponse, PerformanceMetrics } from '../types';
+import { Endpoint, LLMRequest, LLMResponse, PerformanceMetrics, ThinkingBlock } from '../types';
 
 interface UseLLMRequestReturn {
   isLoading: boolean;
   error: string | null;
   response: string;
   metrics: PerformanceMetrics | null;
+  reasoningContent?: string;
+  thinkingBlocks?: ThinkingBlock[];
+  reasoningProvider?: string | null;
   sendRequest: (
     endpoint: Endpoint,
     request: LLMRequest,
@@ -22,6 +25,9 @@ export function useLLMRequest(): UseLLMRequestReturn {
   const [error, setError] = useState<string | null>(null);
   const [response, setResponse] = useState('');
   const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null);
+  const [reasoningContent, setReasoningContent] = useState<string>();
+  const [thinkingBlocks, setThinkingBlocks] = useState<ThinkingBlock[]>();
+  const [reasoningProvider, setReasoningProvider] = useState<string | null>();
 
   const startTimeRef = useRef<number>(0);
   const firstTokenTimeRef = useRef<number | null>(null);
@@ -53,6 +59,9 @@ export function useLLMRequest(): UseLLMRequestReturn {
       setError(null);
       setResponse('');
       setMetrics(null);
+      setReasoningContent(undefined);
+      setThinkingBlocks(undefined);
+      setReasoningProvider(undefined);
 
       // Reset metrics tracking
       startTimeRef.current = performance.now();
@@ -124,6 +133,9 @@ export function useLLMRequest(): UseLLMRequestReturn {
           });
 
           setResponse(result.content);
+          setReasoningContent(result.reasoningContent);
+          setThinkingBlocks(result.thinkingBlocks);
+          setReasoningProvider(result.reasoningProvider || null);
 
           const endTime = performance.now();
           const totalLatency = endTime - startTimeRef.current;
@@ -148,6 +160,9 @@ export function useLLMRequest(): UseLLMRequestReturn {
     setResponse('');
     setError(null);
     setMetrics(null);
+    setReasoningContent(undefined);
+    setThinkingBlocks(undefined);
+    setReasoningProvider(undefined);
   }, []);
 
   const dismissError = useCallback(() => {
@@ -159,6 +174,9 @@ export function useLLMRequest(): UseLLMRequestReturn {
     error,
     response,
     metrics,
+    reasoningContent,
+    thinkingBlocks,
+    reasoningProvider,
     sendRequest,
     clearResponse,
     dismissError,

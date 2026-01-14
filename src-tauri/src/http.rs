@@ -1,19 +1,86 @@
-use crate::types::{Endpoint, LLMRequest, LLMResponse, UsageMetrics};
+use crate::types::{Endpoint, LLMRequest, LLMResponse, UsageMetrics, ReasoningProvider};
+use crate::provider::detect_provider;
 use anyhow::Result;
 use reqwest::Client;
 use std::time::Instant;
 use serde_json::Value;
 
-pub async fn send_llm_request(endpoint: &Endpoint, request: &LLMRequest) -> Result<LLMResponse, String> {
-    let client = Client::new();
+/// Build request body with provider-specific reasoning parameters
+fn build_request_body(_endpoint: &Endpoint, request: &LLMRequest, stream: bool) -> Value {
+    let provider = detect_provider(&request.model);
 
-    let request_body = serde_json::json!({
+    let mut body = serde_json::json!({
         "model": request.model.clone(),
         "messages": request.messages,
         "temperature": request.temperature,
-        "max_tokens": request.max_tokens,
-        "stream": false
+        "stream": stream
     });
+
+    // Add max_tokens based on provider
+    if let Some(reasoning_config) = &request.reasoning_config {
+        match provider {
+            Some(ReasoningProvider::OpenAI) => {
+                // OpenAI uses max_completion_tokens for reasoning models
+                if let Some(max_completion) = reasoning_config.max_completion_tokens {
+                    body["max_completion_tokens"] = serde_json::json!(max_completion);
+                } else {
+                    body["max_tokens"] = serde_json::json!(request.max_tokens);
+                }
+
+                // Add reasoning_effort parameter
+                if let Some(effort) = &reasoning_config.reasoning_effort {
+                    body["reasoning_effort"] = serde_json::json!(effort);
+                }
+            }
+            Some(ReasoningProvider::DeepSeek) => {
+                // DeepSeek uses thinking parameter
+                body["max_tokens"] = serde_json::json!(request.max_tokens);
+                body["thinking"] = serde_json::json!({
+                    "type": if reasoning_config.enable_thinking { "enabled" } else { "disabled" }
+                });
+            }
+            Some(ReasoningProvider::Qwen) => {
+                // Qwen uses enable_thinking and thinking_budget
+                body["max_tokens"] = serde_json::json!(request.max_tokens);
+
+                if reasoning_config.enable_thinking {
+                    body["enable_thinking"] = serde_json::json!(true);
+                    if let Some(budget) = reasoning_config.thinking_budget_tokens {
+                        body["thinking_budget"] = serde_json::json!(budget);
+                    }
+                }
+            }
+            Some(ReasoningProvider::Claude) => {
+                // Claude uses thinking parameter with budget
+                body["max_tokens"] = serde_json::json!(request.max_tokens);
+
+                if reasoning_config.enable_thinking {
+                    let mut thinking = serde_json::json!({
+                        "type": "enabled"
+                    });
+                    if let Some(budget) = reasoning_config.thinking_budget_tokens {
+                        thinking["budget_tokens"] = serde_json::json!(budget);
+                    }
+                    body["thinking"] = thinking;
+                }
+            }
+            None => {
+                // Non-reasoning model
+                body["max_tokens"] = serde_json::json!(request.max_tokens);
+            }
+        }
+    } else {
+        // No reasoning config
+        body["max_tokens"] = serde_json::json!(request.max_tokens);
+    }
+
+    body
+}
+
+pub async fn send_llm_request(endpoint: &Endpoint, request: &LLMRequest) -> Result<LLMResponse, String> {
+    let client = Client::new();
+
+    let request_body = build_request_body(endpoint, request, false);
 
     let mut req_builder = client
         .post(format!("{}/chat/completions", endpoint.url))
@@ -30,7 +97,7 @@ pub async fn send_llm_request(endpoint: &Endpoint, request: &LLMRequest) -> Resu
         req_builder = req_builder.header(key, value);
     }
 
-    let start = Instant::now();
+    let _start = Instant::now();
     let response = req_builder
         .send()
         .await
@@ -54,6 +121,43 @@ pub async fn send_llm_request(endpoint: &Endpoint, request: &LLMRequest) -> Resu
     let parsed: serde_json::Value = serde_json::from_str(&response_text)
         .map_err(|e| format!("Failed to parse response: {}", e))?;
 
+    let provider = detect_provider(&request.model);
+
+    // Extract reasoning content based on provider
+    let reasoning_content = match provider {
+        Some(ReasoningProvider::DeepSeek) | Some(ReasoningProvider::Qwen) => {
+            parsed["choices"][0]["message"]["reasoning_content"]
+                .as_str()
+                .map(|s| s.to_string())
+        }
+        _ => None,
+    };
+
+    // Extract thinking blocks for Claude
+    let thinking_blocks = match provider {
+        Some(ReasoningProvider::Claude) => {
+            // Claude returns thinking as content blocks
+            if let Some(content_array) = parsed["choices"][0]["message"]["content"].as_array() {
+                content_array
+                    .iter()
+                    .filter_map(|block| {
+                        if block["type"] == "thinking" {
+                            Some(crate::types::ThinkingBlock {
+                                content: block["thinking"].as_str().unwrap_or("").to_string(),
+                                summary: block["summary"].as_str().map(|s| s.to_string()),
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        }
+        _ => Vec::new(),
+    };
+
     let content = parsed["choices"][0]["message"]["content"]
         .as_str()
         .unwrap_or("")
@@ -64,6 +168,7 @@ pub async fn send_llm_request(endpoint: &Endpoint, request: &LLMRequest) -> Resu
             prompt_tokens: u["prompt_tokens"].as_u64()? as u32,
             completion_tokens: u["completion_tokens"].as_u64()? as u32,
             total_tokens: u["total_tokens"].as_u64()? as u32,
+            reasoning_tokens: u.get("reasoning_tokens").and_then(|t| t.as_u64()).map(|t| t as u32),
         })
     });
 
@@ -74,6 +179,9 @@ pub async fn send_llm_request(endpoint: &Endpoint, request: &LLMRequest) -> Resu
             .as_str()
             .unwrap_or("stop")
             .to_string(),
+        reasoning_content,
+        thinking_blocks,
+        reasoning_provider: provider,
     })
 }
 
@@ -86,13 +194,7 @@ pub async fn send_llm_request_streaming(
 
     let client = Client::new();
 
-    let request_body = serde_json::json!({
-        "model": request.model.clone(),
-        "messages": request.messages,
-        "temperature": request.temperature,
-        "max_tokens": request.max_tokens,
-        "stream": true
-    });
+    let request_body = build_request_body(endpoint, request, true);
 
     let mut req_builder = client
         .post(format!("{}/chat/completions", endpoint.url))

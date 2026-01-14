@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { PromptInput } from './components/PromptInput';
@@ -7,7 +7,8 @@ import { ResponseDisplay } from './components/ResponseDisplay';
 import { EndpointModal } from './components/EndpointModal';
 import { useEndpointStore } from './stores/endpointStore';
 import { useLLMRequest } from './hooks/useLLMRequest';
-import { Endpoint, Message } from './types';
+import { detectProvider } from './utils/provider';
+import { Endpoint, Message, ReasoningConfig, ReasoningProvider } from './types';
 import './styles/globals.css';
 
 function App() {
@@ -16,10 +17,27 @@ function App() {
   const [temperature, setTemperature] = useState(0);
   const [maxTokens, setMaxTokens] = useState(2048);
   const [stream, setStream] = useState(true);
+  const [reasoningConfig, setReasoningConfig] = useState<ReasoningConfig>({
+    enableThinking: false,
+    reasoningEffort: 'medium',
+    maxCompletionTokens: 2048,
+    thinkingBudgetTokens: 8000,
+  });
+  const [reasoningProvider, setReasoningProvider] = useState<ReasoningProvider | null>(null);
 
   const { selectedEndpoint, saveEndpoint } = useEndpointStore();
-  const { isLoading, response, metrics, error, sendRequest, clearResponse, dismissError } =
+  const { isLoading, response, metrics, error, reasoningContent, thinkingBlocks, reasoningProvider: responseProvider, sendRequest, clearResponse, dismissError } =
     useLLMRequest();
+
+  // Detect reasoning provider when endpoint changes
+  useEffect(() => {
+    if (selectedEndpoint) {
+      const provider = detectProvider(selectedEndpoint.model);
+      setReasoningProvider(provider);
+    } else {
+      setReasoningProvider(null);
+    }
+  }, [selectedEndpoint]);
 
   const handleNewEndpoint = () => {
     setEditingEndpoint(undefined);
@@ -53,6 +71,7 @@ function App() {
       temperature,
       maxTokens: maxTokens,
       stream,
+      reasoningConfig: reasoningProvider ? reasoningConfig : undefined,
     };
 
     await sendRequest(selectedEndpoint, request);
@@ -90,6 +109,9 @@ function App() {
           <ResponseDisplay
             response={response}
             metrics={metrics}
+            reasoningContent={reasoningContent}
+            thinkingBlocks={thinkingBlocks}
+            reasoningProvider={responseProvider}
             isLoading={isLoading}
             isStreaming={isLoading && stream}
             onClear={clearResponse}
@@ -99,9 +121,12 @@ function App() {
             temperature={temperature}
             maxTokens={maxTokens}
             stream={stream}
+            reasoningConfig={reasoningConfig}
+            reasoningProvider={reasoningProvider}
             onTemperatureChange={setTemperature}
             onMaxTokensChange={setMaxTokens}
             onStreamChange={setStream}
+            onReasoningConfigChange={setReasoningConfig}
             disabled={isLoading}
           />
 

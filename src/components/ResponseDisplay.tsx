@@ -1,13 +1,16 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Copy, Check, Trash2 } from 'lucide-react';
+import { Copy, Check, Trash2, ChevronDown, ChevronUp, Brain } from 'lucide-react';
 import { Button } from './UI/Button';
-import { PerformanceMetrics } from '../types';
+import { PerformanceMetrics, ThinkingBlock } from '../types';
 
 interface ResponseDisplayProps {
   response: string;
   metrics: PerformanceMetrics | null;
+  reasoningContent?: string;
+  thinkingBlocks?: ThinkingBlock[];
+  reasoningProvider?: string | null;
   isLoading?: boolean;
   onCopy?: () => void;
   onClear?: () => void;
@@ -17,12 +20,16 @@ interface ResponseDisplayProps {
 export const ResponseDisplay: React.FC<ResponseDisplayProps> = ({
   response,
   metrics,
+  reasoningContent,
+  thinkingBlocks,
+  reasoningProvider,
   isLoading = false,
   onCopy,
   onClear,
   isStreaming = false,
 }) => {
   const [copied, setCopied] = React.useState(false);
+  const [showReasoning, setShowReasoning] = React.useState(false);
 
   const handleCopy = async () => {
     if (response) {
@@ -32,6 +39,8 @@ export const ResponseDisplay: React.FC<ResponseDisplayProps> = ({
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  const hasReasoning = reasoningContent || (thinkingBlocks && thinkingBlocks.length > 0);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -96,6 +105,60 @@ export const ResponseDisplay: React.FC<ResponseDisplayProps> = ({
           </div>
         )}
       </div>
+
+      {/* Reasoning Display */}
+      {hasReasoning && (
+        <div className="bg-amber-50 dark:bg-amber-950/20 border-b border-amber-200 dark:border-amber-800">
+          <button
+            onClick={() => setShowReasoning(!showReasoning)}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Brain className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <span className="font-semibold text-sm text-amber-900 dark:text-amber-100">
+                {reasoningProvider === 'openai'
+                  ? 'Reasoning (tokens counted, content not exposed)'
+                  : 'Thinking Process'}
+              </span>
+            </div>
+            {showReasoning ? (
+              <ChevronUp className="w-4 h-4 text-amber-700 dark:text-amber-300" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-amber-700 dark:text-amber-300" />
+            )}
+          </button>
+
+          {showReasoning && reasoningContent && (
+            <div className="px-4 pb-4 max-h-96 overflow-y-auto">
+              <div className="prose prose-sm dark:prose-invert max-w-none text-amber-900 dark:text-amber-100 bg-amber-100 dark:bg-amber-900/30 rounded-lg p-4">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {reasoningContent}
+                </ReactMarkdown>
+              </div>
+            </div>
+          )}
+
+          {showReasoning && thinkingBlocks && thinkingBlocks.length > 0 && (
+            <div className="px-4 pb-4 max-h-96 overflow-y-auto space-y-3">
+              {thinkingBlocks.map((block, index) => (
+                <div
+                  key={index}
+                  className="prose prose-sm dark:prose-invert max-w-none text-amber-900 dark:text-amber-100 bg-amber-100 dark:bg-amber-900/30 rounded-lg p-4"
+                >
+                  {block.summary && (
+                    <div className="text-xs font-semibold mb-2 opacity-70">
+                      {block.summary}
+                    </div>
+                  )}
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {block.content}
+                  </ReactMarkdown>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto scrollbar-thin p-4 bg-background/50">
         {isLoading && !response && (
